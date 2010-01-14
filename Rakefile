@@ -41,6 +41,20 @@ end
 
 desc "Run the unit tests with rcovrt."
 if RUBY_PLATFORM == 'java'
+  def java_classpath_arg # myriad of ways to discover JRuby classpath
+    begin
+      cpath  = Java::java.lang.System.getProperty('java.class.path').split(File::PATH_SEPARATOR)
+      cpath += Java::java.lang.System.getProperty('sun.boot.class.path').split(File::PATH_SEPARATOR)
+      jruby_cpath = cpath.compact.join(File::PATH_SEPARATOR)
+    rescue => e
+    end
+    unless jruby_cpath
+      jruby_cpath = ENV['JRUBY_PARENT_CLASSPATH'] || ENV['JRUBY_HOME'] &&
+        FileList["#{ENV['JRUBY_HOME']}/lib/*.jar"].join(File::PATH_SEPARATOR)
+    end
+    jruby_cpath ? "-cp \"#{jruby_cpath}\"" : ""
+  end
+
   Rake::TestTask.new(:test_rcovrt => ["lib/rcovrt.jar"]) do |t|
     t.libs << "lib"
     t.ruby_opts << "--debug"
@@ -51,7 +65,7 @@ if RUBY_PLATFORM == 'java'
   file "lib/rcovrt.jar" => FileList["ext/java/**/*.java"] do |t|
     rm_f "lib/rcovrt.jar"
     mkdir_p "pkg/classes"
-    sh "javac -classpath #{Java::JavaLang::System.getProperty('java.class.path')} -d pkg/classes #{t.prerequisites.join(' ')}"
+    sh "javac #{java_classpath_arg} -d pkg/classes #{t.prerequisites.join(' ')}"
     sh "jar cf #{t.name} -C pkg/classes ."
   end
 else
